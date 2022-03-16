@@ -1,24 +1,42 @@
+import React from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { Container, Button } from "react-bootstrap";
 import EventList from "../../components/events/EventList";
 import { EmojiSadIcon, ExclamationCircleIcon } from "../../components/icons";
 import Loader from "../../components/ui/Loader";
-import { getFilteredEvents } from "../../data/dummy-data";
 import { getMonthByIndex } from "../../data/months-data";
+import { getFilteredEvents } from "../../helpers/api-utils";
+import useSWR from "swr";
+import fetcher from "../../helpers/fetcher";
 
 function FilteredEventsPage() {
+  // const { events, hasError, date } = props;
+
+  const [events, setEvents] = React.useState(null);
   const router = useRouter();
 
   const filterData = router.query.slug;
 
-  const filteredYear = filterData?.[0];
-  const filteredMonth = filterData?.[1];
+  const { data, error } = useSWR(
+    "https://nextjs-app-ce56a-default-rtdb.asia-southeast1.firebasedatabase.app/events.json",
+    fetcher
+  );
 
-  const numYear = +filteredYear;
-  const numMonth = +filteredMonth;
+  React.useEffect(() => {
+    if (data) {
+      const eventsArr = [];
+      for (const key in data) {
+        eventsArr.push({
+          id: key,
+          ...data[key],
+        });
+      }
+      setEvents(eventsArr);
+    }
+  }, [data]);
 
-  if (!filterData) {
+  if (!events) {
     return (
       <Container className="event-container mt-2">
         <div className="d-flex w-100 justify-content-center py-5">
@@ -28,13 +46,20 @@ function FilteredEventsPage() {
     );
   }
 
+  const filteredYear = filterData?.[0];
+  const filteredMonth = filterData?.[1];
+
+  const numYear = +filteredYear;
+  const numMonth = +filteredMonth;
+
   if (
     isNaN(numYear) ||
     isNaN(numMonth) ||
     numYear > 2030 ||
     numYear < 2020 ||
     numMonth < 1 ||
-    numMonth > 12
+    numMonth > 12 ||
+    error
   ) {
     // invalidFiltered = true;
     return (
@@ -55,12 +80,15 @@ function FilteredEventsPage() {
     );
   }
 
-  const filteredEvents = getFilteredEvents({
-    year: numYear,
-    month: numMonth,
-  });
-
   const month = getMonthByIndex(numMonth - 1)?.[0];
+
+  const filteredEvents = events.filter(event => {
+    const eventDate = new Date(event.date);
+    return (
+      eventDate.getFullYear() === numYear &&
+      eventDate.getMonth() === numMonth - 1
+    );
+  });
 
   if (!filteredEvents || filteredEvents.length === 0) {
     return (
@@ -70,7 +98,10 @@ function FilteredEventsPage() {
             <ExclamationCircleIcon size={90} />
           </div>
           <p className=" display-6 text-center ">
-            Sorry! No event found in {month} {numYear}
+            Sorry! No event found in{" "}
+            <span className="fw-bold">
+              {month} {numYear}
+            </span>
           </p>
           <Link href="/events">
             <Button>Show All Events</Button>
@@ -92,5 +123,48 @@ function FilteredEventsPage() {
     </Container>
   );
 }
+
+// export async function getServerSideProps(context) {
+//   const { params } = context;
+
+//   const filterData = params.slug;
+
+//   const filteredYear = filterData?.[0];
+//   const filteredMonth = filterData?.[1];
+
+//   const numYear = +filteredYear;
+//   const numMonth = +filteredMonth;
+
+//   if (
+//     isNaN(numYear) ||
+//     isNaN(numMonth) ||
+//     numYear > 2030 ||
+//     numYear < 2020 ||
+//     numMonth < 1 ||
+//     numMonth > 12
+//   ) {
+//     console.log("okk");
+//     return {
+//       props: { hasError: true },
+//       // redirect: {
+//       //   destination: "/error",
+//       // },
+//     };
+//   }
+
+//   const filteredEvents = await getFilteredEvents({
+//     year: numYear,
+//     month: numMonth,
+//   });
+
+//   const month = getMonthByIndex(numMonth - 1)?.[0];
+
+//   return {
+//     props: {
+//       events: filteredEvents,
+//       date: { month, year: numYear },
+//     },
+//   };
+// }
 
 export default FilteredEventsPage;
